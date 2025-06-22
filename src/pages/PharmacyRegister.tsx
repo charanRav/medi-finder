@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Upload, MapPin } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const PharmacyRegister = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +26,9 @@ const PharmacyRegister = () => {
   });
   const [licenseFile, setLicenseFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { signUp } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleInputChange = (e) => {
     setFormData({
@@ -40,40 +46,103 @@ const PharmacyRegister = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          // In a real app, you'd reverse geocode these coordinates
-          alert(`Location captured: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          toast({
+            title: "Location captured",
+            description: `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          });
         },
         (error) => {
           console.error('Error getting location:', error);
-          alert('Unable to get your location. Please enter address manually.');
+          toast({
+            title: "Location Error",
+            description: "Unable to get your location. Please enter address manually.",
+            variant: "destructive",
+          });
         }
       );
     } else {
-      alert('Geolocation is not supported by this browser.');
+      toast({
+        title: "Geolocation Not Supported",
+        description: "Geolocation is not supported by this browser.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      toast({
+        title: "Password Mismatch",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!licenseFile) {
-      alert('Please upload your pharmacy license');
+      toast({
+        title: "License Required",
+        description: "Please upload your pharmacy license",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsLoading(true);
     
-    // Simulate registration process
-    setTimeout(() => {
+    try {
+      // Sign up the user first
+      const { error: signUpError } = await signUp(formData.email, formData.password, 'pharmacy');
+      
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      // Get the current user to get the user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Insert pharmacy data
+        const { error: pharmacyError } = await supabase
+          .from('pharmacies')
+          .insert({
+            user_id: user.id,
+            name: formData.pharmacyName,
+            owner_name: formData.ownerName,
+            license_number: formData.licenseNumber,
+            phone: formData.phone,
+            email: formData.email,
+            address: `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`,
+            latitude: null, // You can implement geocoding later
+            longitude: null
+          });
+
+        if (pharmacyError) {
+          console.error('Pharmacy insert error:', pharmacyError);
+          throw new Error('Failed to save pharmacy details');
+        }
+      }
+
+      toast({
+        title: "Registration Successful!",
+        description: "Please check your email for verification. You can now login after verification.",
+      });
+      
+      // Redirect to login page
+      navigate('/pharmacy-login');
+      
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Registration Failed",
+        description: error.message || "An error occurred during registration",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-      alert('Registration successful! Please check your email for verification.');
-      // In a real app, redirect to login or dashboard
-    }, 2000);
+    }
   };
 
   return (
