@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,19 +13,47 @@ import {
   Settings, 
   LogOut, 
   Plus,
-  Trash2,
   Edit
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+
+interface Medicine {
+  id: string;
+  name: string;
+  category: string;
+}
+
+interface InventoryItem {
+  id: string;
+  medicine_id: string;
+  in_stock: boolean;
+  quantity: number;
+  medicines: Medicine;
+}
+
+interface Pharmacy {
+  id: string;
+  name: string;
+  owner_name: string;
+  phone: string;
+  email: string;
+  address: string;
+}
 
 const PharmacyDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [inventory, setInventory] = useState([
-    { id: 1, name: 'Paracetamol 500mg', category: 'fever', inStock: true, quantity: 50 },
-    { id: 2, name: 'Aspirin 75mg', category: 'heart', inStock: true, quantity: 30 },
-    { id: 3, name: 'Crocin 650mg', category: 'fever', inStock: false, quantity: 0 },
-    { id: 4, name: 'Metformin 500mg', category: 'diabetes', inStock: true, quantity: 25 },
-  ]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const categories = [
     { id: 'all', name: 'All Medicines' },
@@ -37,25 +65,138 @@ const PharmacyDashboard = () => {
     { id: 'antibiotics', name: 'Antibiotics' },
   ];
 
-  const masterMedicines = [
-    'Paracetamol 500mg', 'Paracetamol 650mg', 'Aspirin 75mg', 'Aspirin 325mg',
-    'Crocin 500mg', 'Crocin 650mg', 'Dolo 650mg', 'Combiflam',
-    'Metformin 500mg', 'Metformin 850mg', 'Glimepiride 1mg', 'Glimepiride 2mg',
-    'Amlodipine 5mg', 'Amlodipine 10mg', 'Atenolol 50mg', 'Atenolol 25mg',
-    'Azithromycin 250mg', 'Azithromycin 500mg', 'Amoxicillin 250mg', 'Amoxicillin 500mg'
-  ];
+  useEffect(() => {
+    if (!user) {
+      navigate('/pharmacy-login');
+      return;
+    }
+    
+    fetchPharmacyData();
+    fetchInventory();
+    fetchMedicines();
+  }, [user, navigate]);
 
-  const toggleStock = (id) => {
-    setInventory(inventory.map(item => 
-      item.id === id ? { ...item, inStock: !item.inStock } : item
-    ));
+  const fetchPharmacyData = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('pharmacies')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching pharmacy:', error);
+    } else {
+      setPharmacy(data);
+    }
+  };
+
+  const fetchInventory = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('pharmacy_inventory')
+      .select(`
+        *,
+        medicines (
+          id,
+          name,
+          category
+        )
+      `)
+      .eq('pharmacy_id', pharmacy?.id);
+    
+    if (error) {
+      console.error('Error fetching inventory:', error);
+    } else {
+      setInventory(data || []);
+    }
+    setLoading(false);
+  };
+
+  const fetchMedicines = async () => {
+    const { data, error } = await supabase
+      .from('medicines')
+      .select('*')
+      .order('name');
+    
+    if (error) {
+      console.error('Error fetching medicines:', error);
+    } else {
+      setMedicines(data || []);
+    }
+  };
+
+  const toggleStock = async (inventoryId: string, currentStock: boolean) => {
+    const { error } = await supabase
+      .from('pharmacy_inventory')
+      .update({ in_stock: !currentStock })
+      .eq('id', inventoryId);
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update stock status",
+        variant: "destructive",
+      });
+    } else {
+      setInventory(inventory.map(item => 
+        item.id === inventoryId ? { ...item, in_stock: !currentStock } : item
+      ));
+      toast({
+        title: "Success",
+        description: "Stock status updated",
+      });
+    }
+  };
+
+  const addMedicineToInventory = async (medicineId: string) => {
+    if (!pharmacy) return;
+    
+    const { error } = await supabase
+      .from('pharmacy_inventory')
+      .insert({
+        pharmacy_id: pharmacy.id,
+        medicine_id: medicineId,
+        in_stock: true,
+        quantity: 10
+      });
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add medicine to inventory",
+        variant: "destructive",
+      });
+    } else {
+      fetchInventory();
+      toast({
+        title: "Success",
+        description: "Medicine added to inventory",
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
   };
 
   const filteredInventory = inventory.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesSearch = item.medicines.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || item.medicines.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  if (loading) {
+    return <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+        <p className="mt-2 text-gray-600">Loading dashboard...</p>
+      </div>
+    </div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
@@ -68,11 +209,11 @@ const PharmacyDashboard = () => {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">HealthPlus Pharmacy</h1>
+                <h1 className="text-2xl font-bold text-gray-800">{pharmacy?.name || 'Pharmacy Dashboard'}</h1>
                 <p className="text-sm text-gray-600">Dashboard</p>
               </div>
             </div>
-            <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50">
+            <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -147,20 +288,20 @@ const PharmacyDashboard = () => {
                   {filteredInventory.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-800">{item.name}</h3>
+                        <h3 className="font-medium text-gray-800">{item.medicines.name}</h3>
                         <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <Badge variant={item.inStock ? "default" : "secondary"}>
-                          {item.inStock ? "In Stock" : "Out of Stock"}
+                        <Badge variant={item.in_stock ? "default" : "secondary"}>
+                          {item.in_stock ? "In Stock" : "Out of Stock"}
                         </Badge>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => toggleStock(item.id)}
-                          className={item.inStock ? "border-red-600 text-red-600 hover:bg-red-50" : "border-green-600 text-green-600 hover:bg-green-50"}
+                          onClick={() => toggleStock(item.id, item.in_stock)}
+                          className={item.in_stock ? "border-red-600 text-red-600 hover:bg-red-50" : "border-green-600 text-green-600 hover:bg-green-50"}
                         >
-                          {item.inStock ? "Mark Out of Stock" : "Mark In Stock"}
+                          {item.in_stock ? "Mark Out of Stock" : "Mark In Stock"}
                         </Button>
                         <Button size="sm" variant="outline">
                           <Edit className="w-4 h-4" />
@@ -180,20 +321,18 @@ const PharmacyDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {masterMedicines.slice(0, 8).map((medicine, index) => (
+                  {medicines.slice(0, 8).map((medicine) => (
                     <Button
-                      key={index}
+                      key={medicine.id}
                       variant="outline"
                       className="text-left justify-start h-auto p-3 hover:bg-green-50 hover:border-green-600"
+                      onClick={() => addMedicineToInventory(medicine.id)}
                     >
                       <Plus className="w-4 h-4 mr-2 text-green-600" />
-                      <span className="text-sm">{medicine}</span>
+                      <span className="text-sm">{medicine.name}</span>
                     </Button>
                   ))}
                 </div>
-                <Button className="w-full mt-4 bg-green-600 hover:bg-green-700">
-                  View All Medicines in Database
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -208,24 +347,24 @@ const PharmacyDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="pharmacyName">Pharmacy Name</Label>
-                    <Input id="pharmacyName" defaultValue="HealthPlus Pharmacy" />
+                    <Input id="pharmacyName" defaultValue={pharmacy?.name || ''} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ownerName">Owner Name</Label>
-                    <Input id="ownerName" defaultValue="Dr. John Smith" />
+                    <Input id="ownerName" defaultValue={pharmacy?.owner_name || ''} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" defaultValue="+91 98765 43210" />
+                    <Input id="phone" defaultValue={pharmacy?.phone || ''} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" defaultValue="healthplus@example.com" />
+                    <Input id="email" defaultValue={pharmacy?.email || ''} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="address">Address</Label>
-                  <Input id="address" defaultValue="123 Main Street, City Center" />
+                  <Input id="address" defaultValue={pharmacy?.address || ''} />
                 </div>
                 <Button className="bg-blue-600 hover:bg-blue-700">
                   Update Profile

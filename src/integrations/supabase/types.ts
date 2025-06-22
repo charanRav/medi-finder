@@ -9,7 +9,138 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      medicines: {
+        Row: {
+          aliases: string[] | null
+          category: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          aliases?: string[] | null
+          category: string
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          aliases?: string[] | null
+          category?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      pharmacies: {
+        Row: {
+          address: string
+          created_at: string | null
+          email: string
+          id: string
+          latitude: number | null
+          license_number: string
+          longitude: number | null
+          name: string
+          owner_name: string
+          phone: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          address: string
+          created_at?: string | null
+          email: string
+          id?: string
+          latitude?: number | null
+          license_number: string
+          longitude?: number | null
+          name: string
+          owner_name: string
+          phone: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          latitude?: number | null
+          license_number?: string
+          longitude?: number | null
+          name?: string
+          owner_name?: string
+          phone?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pharmacy_inventory: {
+        Row: {
+          id: string
+          in_stock: boolean | null
+          medicine_id: string
+          pharmacy_id: string
+          quantity: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          in_stock?: boolean | null
+          medicine_id: string
+          pharmacy_id: string
+          quantity?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          in_stock?: boolean | null
+          medicine_id?: string
+          pharmacy_id?: string
+          quantity?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharmacy_inventory_medicine_id_fkey"
+            columns: ["medicine_id"]
+            isOneToOne: false
+            referencedRelation: "medicines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pharmacy_inventory_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          user_type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
