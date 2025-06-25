@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +52,7 @@ const PharmacyDashboard = () => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -68,103 +68,105 @@ const PharmacyDashboard = () => {
     { id: 'antibiotics', name: 'Antibiotics' },
   ];
 
-  useEffect(() => {
+  // Combined data fetching function to reduce multiple requests
+  const initializeData = async () => {
     if (!user) {
       navigate('/pharmacy-login');
       return;
     }
-    
-    fetchPharmacyData();
-    fetchMedicines();
-  }, [user, navigate]);
 
-  useEffect(() => {
-    if (pharmacy?.id) {
-      fetchInventory();
-    }
-  }, [pharmacy?.id]);
-
-  const fetchPharmacyData = async () => {
-    if (!user) return;
-    
     try {
-      const { data, error } = await supabase
-        .from('pharmacies')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      setLoading(true);
+      console.log('Initializing pharmacy dashboard data...');
       
-      if (error) {
-        console.error('Error fetching pharmacy:', error);
+      // Fetch pharmacy data and medicines in parallel
+      const [pharmacyResponse, medicinesResponse] = await Promise.all([
+        supabase
+          .from('pharmacies')
+          .select('*')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('medicines')
+          .select('*')
+          .order('name')
+      ]);
+
+      if (pharmacyResponse.error) {
+        console.error('Error fetching pharmacy:', pharmacyResponse.error);
         toast({
           title: "Error",
           description: "Failed to fetch pharmacy data",
           variant: "destructive",
         });
-      } else {
-        setPharmacy(data);
+        return;
       }
-    } catch (err) {
-      console.error('Exception fetching pharmacy:', err);
-    }
-  };
 
-  const fetchInventory = async () => {
-    if (!pharmacy?.id) return;
-    
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('pharmacy_inventory')
-        .select(`
-          *,
-          medicines (
-            id,
-            name,
-            category
-          )
-        `)
-        .eq('pharmacy_id', pharmacy.id);
-      
-      if (error) {
-        console.error('Error fetching inventory:', error);
+      if (medicinesResponse.error) {
+        console.error('Error fetching medicines:', medicinesResponse.error);
         toast({
-          title: "Error",
-          description: "Failed to fetch inventory",
+          title: "Error", 
+          description: "Failed to fetch medicines data",
           variant: "destructive",
         });
-      } else {
-        setInventory(data || []);
+        return;
       }
+
+      setPharmacy(pharmacyResponse.data);
+      setMedicines(medicinesResponse.data || []);
+      
+      // Fetch inventory after we have pharmacy data
+      if (pharmacyResponse.data?.id) {
+        const inventoryResponse = await supabase
+          .from('pharmacy_inventory')
+          .select(`
+            *,
+            medicines (
+              id,
+              name,
+              category
+            )
+          `)
+          .eq('pharmacy_id', pharmacyResponse.data.id);
+
+        if (inventoryResponse.error) {
+          console.error('Error fetching inventory:', inventoryResponse.error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch inventory",
+            variant: "destructive",
+          });
+        } else {
+          setInventory(inventoryResponse.data || []);
+        }
+      }
+
+      setDataLoaded(true);
+      console.log('Dashboard data loaded successfully');
+      
     } catch (err) {
-      console.error('Exception fetching inventory:', err);
+      console.error('Exception during data initialization:', err);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMedicines = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('medicines')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Error fetching medicines:', error);
-      } else {
-        setMedicines(data || []);
-      }
-    } catch (err) {
-      console.error('Exception fetching medicines:', err);
-    }
-  };
+  useEffect(() => {
+    initializeData();
+  }, [user]);
 
   const toggleStock = async (inventoryId: string, currentStock: boolean) => {
     if (isUpdating === inventoryId) return;
     
     try {
       setIsUpdating(inventoryId);
+      console.log(`Toggling stock for inventory ${inventoryId} from ${currentStock} to ${!currentStock}`);
+      
       const { error } = await supabase
         .from('pharmacy_inventory')
         .update({ in_stock: !currentStock })
@@ -178,7 +180,7 @@ const PharmacyDashboard = () => {
           variant: "destructive",
         });
       } else {
-        setInventory(inventory.map(item => 
+        setInventory(prev => prev.map(item => 
           item.id === inventoryId ? { ...item, in_stock: !currentStock } : item
         ));
         toast({
@@ -203,6 +205,8 @@ const PharmacyDashboard = () => {
     
     try {
       setIsUpdating(inventoryId);
+      console.log(`Updating quantity for inventory ${inventoryId} to ${newQuantity}`);
+      
       const { error } = await supabase
         .from('pharmacy_inventory')
         .update({ quantity: newQuantity })
@@ -216,7 +220,7 @@ const PharmacyDashboard = () => {
           variant: "destructive",
         });
       } else {
-        setInventory(inventory.map(item => 
+        setInventory(prev => prev.map(item => 
           item.id === inventoryId ? { ...item, quantity: newQuantity } : item
         ));
         toast({
@@ -226,6 +230,11 @@ const PharmacyDashboard = () => {
       }
     } catch (err) {
       console.error('Exception updating quantity:', err);
+      toast({
+        title: "Error",
+        description: "Failed to update quantity",
+        variant: "destructive",
+      });
     } finally {
       setIsUpdating(null);
     }
@@ -235,6 +244,8 @@ const PharmacyDashboard = () => {
     if (!pharmacy?.id) return;
     
     try {
+      console.log(`Adding medicine ${medicineId} to inventory`);
+      
       // Check if medicine already exists in inventory
       const existingItem = inventory.find(item => item.medicine_id === medicineId);
       if (existingItem) {
@@ -263,7 +274,23 @@ const PharmacyDashboard = () => {
           variant: "destructive",
         });
       } else {
-        await fetchInventory();
+        // Refresh inventory data
+        const inventoryResponse = await supabase
+          .from('pharmacy_inventory')
+          .select(`
+            *,
+            medicines (
+              id,
+              name,
+              category
+            )
+          `)
+          .eq('pharmacy_id', pharmacy.id);
+
+        if (inventoryResponse.data) {
+          setInventory(inventoryResponse.data);
+        }
+        
         toast({
           title: "Success",
           description: "Medicine added to inventory",
@@ -271,11 +298,17 @@ const PharmacyDashboard = () => {
       }
     } catch (err) {
       console.error('Exception adding medicine:', err);
+      toast({
+        title: "Error",
+        description: "Failed to add medicine to inventory",
+        variant: "destructive",
+      });
     }
   };
 
   const handleLogout = async () => {
     try {
+      console.log('Logging out...');
       await signOut();
       navigate('/');
     } catch (err) {
@@ -292,12 +325,30 @@ const PharmacyDashboard = () => {
   const inventoryMedicineIds = inventory.map(item => item.medicine_id);
 
   if (loading) {
-    return <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading dashboard...</p>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
-    </div>;
+    );
+  }
+
+  if (!dataLoaded || !pharmacy) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Unable to load pharmacy data. Please try refreshing the page.</p>
+          <Button 
+            onClick={initializeData} 
+            className="mt-4 bg-green-600 hover:bg-green-700"
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -311,7 +362,7 @@ const PharmacyDashboard = () => {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">{pharmacy?.name || 'Pharmacy Dashboard'}</h1>
+                <h1 className="text-2xl font-bold text-gray-800">{pharmacy.name}</h1>
                 <p className="text-sm text-gray-600">Dashboard</p>
               </div>
             </div>
