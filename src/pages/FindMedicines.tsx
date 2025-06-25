@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Search, MapPin, Phone, Clock, Navigation } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import SearchWithSuggestions from "@/components/SearchWithSuggestions";
 
 // Mock pharmacy locations for realistic range simulation
 const mockPharmacyLocations = [
@@ -28,11 +29,18 @@ const mockPharmacyLocations = [
   { id: 16, distance: 9.8, name: "Medicine Express", address: "Suburb Area, Green Valley" }
 ];
 
+interface Medicine {
+  id: string;
+  name: string;
+  category: string;
+  aliases?: string[];
+}
+
 const FindMedicines = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRange, setSelectedRange] = useState(5);
   const [location, setLocation] = useState('');
-  const [medicines, setMedicines] = useState([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [pharmacies, setPharmacies] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +77,6 @@ const FindMedicines = () => {
   };
 
   const getPharmaciesByRange = (rangeKm) => {
-    // Filter mock pharmacies based on selected range to simulate realistic distance-based results
     return mockPharmacyLocations.filter(pharmacy => pharmacy.distance <= rangeKm);
   };
 
@@ -79,11 +86,11 @@ const FindMedicines = () => {
     setIsLoading(true);
     
     try {
-      // Search for medicines that match the search term
+      // Enhanced search with better matching
+      const searchTermLower = searchTerm.toLowerCase();
       const { data: matchedMedicines, error } = await supabase
         .from('medicines')
-        .select('*')
-        .or(`name.ilike.%${searchTerm}%, aliases.cs.{${searchTerm}}`);
+        .select('*');
 
       if (error) {
         console.error('Search error:', error);
@@ -91,11 +98,22 @@ const FindMedicines = () => {
         return;
       }
 
+      // Client-side fuzzy matching for better results
+      const filteredMedicines = matchedMedicines?.filter(medicine => {
+        const name = medicine.name.toLowerCase();
+        const aliases = medicine.aliases?.map(alias => alias.toLowerCase()) || [];
+        
+        return name.includes(searchTermLower) || 
+               aliases.some(alias => alias.includes(searchTermLower)) ||
+               name.startsWith(searchTermLower) ||
+               aliases.some(alias => alias.startsWith(searchTermLower));
+      }) || [];
+
       // Get pharmacies within selected range
       const pharmaciesInRange = getPharmaciesByRange(selectedRange);
       
       // Combine real medicine data with mock pharmacy locations for realistic results
-      const results = matchedMedicines?.map(medicine => ({
+      const results = filteredMedicines?.map(medicine => ({
         medicine,
         availableAt: pharmaciesInRange.slice(0, Math.min(pharmaciesInRange.length, Math.floor(Math.random() * pharmaciesInRange.length) + 1)),
       })) || [];
@@ -107,6 +125,11 @@ const FindMedicines = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMedicineSelect = (medicine: Medicine) => {
+    setSearchTerm(medicine.name);
+    handleSearch();
   };
 
   const handleLocationDetect = () => {
@@ -151,15 +174,15 @@ const FindMedicines = () => {
             <CardTitle className="text-xl">Search for Medicines</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Medicine Search */}
+            {/* Medicine Search with Autocomplete */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Medicine Name</label>
               <div className="flex space-x-2">
-                <Input
+                <SearchWithSuggestions
                   placeholder="Enter medicine name (e.g., Paracetamol, Crocin)"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  onChange={setSearchTerm}
+                  onSelect={handleMedicineSelect}
                   className="flex-1"
                 />
                 <Button onClick={handleSearch} disabled={isLoading}>
