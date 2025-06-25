@@ -4,18 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Shield } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Shield, Mail, Phone } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const PharmacyLogin = () => {
-  const [formData, setFormData] = useState({
+  const [emailForm, setEmailForm] = useState({
     email: '',
     password: ''
   });
+  const [phoneForm, setPhoneForm] = useState({
+    phone: '',
+    password: ''
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, user } = useAuth();
+  const { signIn, signInWithPhone, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -25,18 +30,46 @@ const PharmacyLogin = () => {
     }
   }, [user, navigate]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
+  const handleEmailInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmailForm({
+      ...emailForm,
       [e.target.name]: e.target.value
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePhoneInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhoneForm({
+      ...phoneForm,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    const { error } = await signIn(formData.email, formData.password);
+    const { error } = await signIn(emailForm.email, emailForm.password);
+    
+    if (error) {
+      toast({
+        title: "Login Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Welcome back!",
+        description: "Redirecting to your dashboard...",
+      });
+    }
+    setIsLoading(false);
+  };
+
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    const { error } = await signInWithPhone(phoneForm.phone, phoneForm.password);
     
     if (error) {
       toast({
@@ -80,33 +113,110 @@ const PharmacyLogin = () => {
             <p className="text-gray-600">Sign in to your pharmacy dashboard</p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="pharmacy@example.com"
-                  required
-                />
-              </div>
+            <Tabs defaultValue="email" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="email">
+                  <Mail className="w-4 h-4 mr-2" />
+                  Email
+                </TabsTrigger>
+                <TabsTrigger value="phone">
+                  <Phone className="w-4 h-4 mr-2" />
+                  Phone
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="email">
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={emailForm.email}
+                      onChange={handleEmailInputChange}
+                      placeholder="pharmacy@example.com"
+                      required
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="Enter your password"
-                  required
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email-password">Password</Label>
+                    <Input
+                      id="email-password"
+                      name="password"
+                      type="password"
+                      value={emailForm.password}
+                      onChange={handleEmailInputChange}
+                      placeholder="Enter your password"
+                      required
+                    />
+                  </div>
 
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Signing in...
+                      </>
+                    ) : (
+                      'Sign In with Email'
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="phone">
+                <form onSubmit={handlePhoneSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={phoneForm.phone}
+                      onChange={handlePhoneInputChange}
+                      placeholder="+1234567890"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone-password">Password</Label>
+                    <Input
+                      id="phone-password"
+                      name="password"
+                      type="password"
+                      value={phoneForm.password}
+                      onChange={handlePhoneInputChange}
+                      placeholder="Enter your password"
+                      required
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Signing in...
+                      </>
+                    ) : (
+                      'Sign In with Phone'
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+
+            <div className="mt-4">
               <div className="flex items-center justify-between text-sm">
                 <label className="flex items-center space-x-2">
                   <input type="checkbox" className="rounded" />
@@ -117,22 +227,7 @@ const PharmacyLogin = () => {
                 </a>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-
-              <div className="text-center">
+              <div className="text-center mt-4">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{' '}
                   <Link to="/pharmacy-register" className="text-green-600 hover:underline">
@@ -140,7 +235,7 @@ const PharmacyLogin = () => {
                   </Link>
                 </p>
               </div>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -5,22 +5,29 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Shield, User } from "lucide-react";
+import { ArrowLeft, Shield, User, Mail, Phone } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ 
+    email: '', 
+    phone: '',
+    password: '',
+    loginType: 'email'
+  });
   const [signupForm, setSignupForm] = useState({ 
     email: '', 
+    phone: '',
     password: '', 
     confirmPassword: '', 
-    userType: 'user' 
+    userType: 'user',
+    signupType: 'email'
   });
   
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signInWithPhone, signUp, signUpWithPhone, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -34,7 +41,14 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    const { error } = await signIn(loginForm.email, loginForm.password);
+    let error;
+    if (loginForm.loginType === 'email') {
+      const result = await signIn(loginForm.email, loginForm.password);
+      error = result.error;
+    } else {
+      const result = await signInWithPhone(loginForm.phone, loginForm.password);
+      error = result.error;
+    }
     
     if (error) {
       toast({
@@ -65,7 +79,14 @@ const Auth = () => {
 
     setIsLoading(true);
     
-    const { error } = await signUp(signupForm.email, signupForm.password, signupForm.userType);
+    let error;
+    if (signupForm.signupType === 'email') {
+      const result = await signUp(signupForm.email, signupForm.password, signupForm.userType);
+      error = result.error;
+    } else {
+      const result = await signUpWithPhone(signupForm.phone, signupForm.password, signupForm.userType);
+      error = result.error;
+    }
     
     if (error) {
       toast({
@@ -76,7 +97,9 @@ const Auth = () => {
     } else {
       toast({
         title: "Account Created!",
-        description: "Please check your email to verify your account.",
+        description: signupForm.signupType === 'email' 
+          ? "Please check your email to verify your account."
+          : "Please check your phone for verification code.",
       });
     }
     setIsLoading(false);
@@ -115,39 +138,78 @@ const Auth = () => {
                 <p className="text-gray-600">Sign in to your account</p>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email Address</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
-                      placeholder="user@example.com"
-                      required
-                    />
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={loginForm.loginType === 'email' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setLoginForm({...loginForm, loginType: 'email'})}
+                      className="flex-1"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Email
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={loginForm.loginType === 'phone' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setLoginForm({...loginForm, loginType: 'phone'})}
+                      className="flex-1"
+                    >
+                      <Phone className="w-4 h-4 mr-2" />
+                      Phone
+                    </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                      placeholder="Enter your password"
-                      required
-                    />
-                  </div>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    {loginForm.loginType === 'email' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="login-email">Email Address</Label>
+                        <Input
+                          id="login-email"
+                          type="email"
+                          value={loginForm.email}
+                          onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                          placeholder="user@example.com"
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="login-phone">Phone Number</Label>
+                        <Input
+                          id="login-phone"
+                          type="tel"
+                          value={loginForm.phone}
+                          onChange={(e) => setLoginForm({...loginForm, phone: e.target.value})}
+                          placeholder="+1234567890"
+                          required
+                        />
+                      </div>
+                    )}
 
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Signing in..." : "Sign In"}
-                  </Button>
-                </form>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input
+                        id="login-password"
+                        type="password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                        placeholder="Enter your password"
+                        required
+                      />
+                    </div>
+
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Signing in..." : "Sign In"}
+                    </Button>
+                  </form>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -162,64 +224,103 @@ const Auth = () => {
                 <p className="text-gray-600">Join our medicine finder platform</p>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email Address</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      value={signupForm.email}
-                      onChange={(e) => setSignupForm({...signupForm, email: e.target.value})}
-                      placeholder="user@example.com"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="user-type">Account Type</Label>
-                    <select
-                      id="user-type"
-                      value={signupForm.userType}
-                      onChange={(e) => setSignupForm({...signupForm, userType: e.target.value})}
-                      className="w-full p-2 border rounded-md"
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={signupForm.signupType === 'email' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSignupForm({...signupForm, signupType: 'email'})}
+                      className="flex-1"
                     >
-                      <option value="user">General User</option>
-                      <option value="pharmacy">Pharmacy Owner</option>
-                    </select>
+                      <Mail className="w-4 h-4 mr-2" />
+                      Email
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={signupForm.signupType === 'phone' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSignupForm({...signupForm, signupType: 'phone'})}
+                      className="flex-1"
+                    >
+                      <Phone className="w-4 h-4 mr-2" />
+                      Phone
+                    </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      value={signupForm.password}
-                      onChange={(e) => setSignupForm({...signupForm, password: e.target.value})}
-                      placeholder="Create a password"
-                      required
-                    />
-                  </div>
+                  <form onSubmit={handleSignup} className="space-y-4">
+                    {signupForm.signupType === 'email' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-email">Email Address</Label>
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          value={signupForm.email}
+                          onChange={(e) => setSignupForm({...signupForm, email: e.target.value})}
+                          placeholder="user@example.com"
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-phone">Phone Number</Label>
+                        <Input
+                          id="signup-phone"
+                          type="tel"
+                          value={signupForm.phone}
+                          onChange={(e) => setSignupForm({...signupForm, phone: e.target.value})}
+                          placeholder="+1234567890"
+                          required
+                        />
+                      </div>
+                    )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      value={signupForm.confirmPassword}
-                      onChange={(e) => setSignupForm({...signupForm, confirmPassword: e.target.value})}
-                      placeholder="Confirm your password"
-                      required
-                    />
-                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="user-type">Account Type</Label>
+                      <select
+                        id="user-type"
+                        value={signupForm.userType}
+                        onChange={(e) => setSignupForm({...signupForm, userType: e.target.value})}
+                        className="w-full p-2 border rounded-md"
+                      >
+                        <option value="user">General User</option>
+                        <option value="pharmacy">Pharmacy Owner</option>
+                      </select>
+                    </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Creating account..." : "Create Account"}
-                  </Button>
-                </form>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        value={signupForm.password}
+                        onChange={(e) => setSignupForm({...signupForm, password: e.target.value})}
+                        placeholder="Create a password"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password">Confirm Password</Label>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        value={signupForm.confirmPassword}
+                        onChange={(e) => setSignupForm({...signupForm, confirmPassword: e.target.value})}
+                        placeholder="Confirm your password"
+                        required
+                      />
+                    </div>
+
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Creating account..." : "Create Account"}
+                    </Button>
+                  </form>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
