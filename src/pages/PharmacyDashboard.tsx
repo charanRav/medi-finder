@@ -13,12 +13,14 @@ import {
   Settings, 
   LogOut, 
   Plus,
-  Edit
+  Edit,
+  Minus
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import CategoryCarousel from "@/components/CategoryCarousel";
 
 interface Medicine {
   id: string;
@@ -50,6 +52,7 @@ const PharmacyDashboard = () => {
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
   
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -72,115 +75,212 @@ const PharmacyDashboard = () => {
     }
     
     fetchPharmacyData();
-    fetchInventory();
     fetchMedicines();
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (pharmacy?.id) {
+      fetchInventory();
+    }
+  }, [pharmacy?.id]);
 
   const fetchPharmacyData = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from('pharmacies')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (error) {
-      console.error('Error fetching pharmacy:', error);
-    } else {
-      setPharmacy(data);
+    try {
+      const { data, error } = await supabase
+        .from('pharmacies')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching pharmacy:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch pharmacy data",
+          variant: "destructive",
+        });
+      } else {
+        setPharmacy(data);
+      }
+    } catch (err) {
+      console.error('Exception fetching pharmacy:', err);
     }
   };
 
   const fetchInventory = async () => {
-    if (!user) return;
+    if (!pharmacy?.id) return;
     
-    const { data, error } = await supabase
-      .from('pharmacy_inventory')
-      .select(`
-        *,
-        medicines (
-          id,
-          name,
-          category
-        )
-      `)
-      .eq('pharmacy_id', pharmacy?.id);
-    
-    if (error) {
-      console.error('Error fetching inventory:', error);
-    } else {
-      setInventory(data || []);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('pharmacy_inventory')
+        .select(`
+          *,
+          medicines (
+            id,
+            name,
+            category
+          )
+        `)
+        .eq('pharmacy_id', pharmacy.id);
+      
+      if (error) {
+        console.error('Error fetching inventory:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch inventory",
+          variant: "destructive",
+        });
+      } else {
+        setInventory(data || []);
+      }
+    } catch (err) {
+      console.error('Exception fetching inventory:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchMedicines = async () => {
-    const { data, error } = await supabase
-      .from('medicines')
-      .select('*')
-      .order('name');
-    
-    if (error) {
-      console.error('Error fetching medicines:', error);
-    } else {
-      setMedicines(data || []);
+    try {
+      const { data, error } = await supabase
+        .from('medicines')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching medicines:', error);
+      } else {
+        setMedicines(data || []);
+      }
+    } catch (err) {
+      console.error('Exception fetching medicines:', err);
     }
   };
 
   const toggleStock = async (inventoryId: string, currentStock: boolean) => {
-    const { error } = await supabase
-      .from('pharmacy_inventory')
-      .update({ in_stock: !currentStock })
-      .eq('id', inventoryId);
+    if (isUpdating === inventoryId) return;
     
-    if (error) {
+    try {
+      setIsUpdating(inventoryId);
+      const { error } = await supabase
+        .from('pharmacy_inventory')
+        .update({ in_stock: !currentStock })
+        .eq('id', inventoryId);
+      
+      if (error) {
+        console.error('Error updating stock:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update stock status",
+          variant: "destructive",
+        });
+      } else {
+        setInventory(inventory.map(item => 
+          item.id === inventoryId ? { ...item, in_stock: !currentStock } : item
+        ));
+        toast({
+          title: "Success",
+          description: `Medicine marked as ${!currentStock ? 'in stock' : 'out of stock'}`,
+        });
+      }
+    } catch (err) {
+      console.error('Exception updating stock:', err);
       toast({
         title: "Error",
         description: "Failed to update stock status",
         variant: "destructive",
       });
-    } else {
-      setInventory(inventory.map(item => 
-        item.id === inventoryId ? { ...item, in_stock: !currentStock } : item
-      ));
-      toast({
-        title: "Success",
-        description: "Stock status updated",
-      });
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const updateQuantity = async (inventoryId: string, newQuantity: number) => {
+    if (newQuantity < 0 || isUpdating === inventoryId) return;
+    
+    try {
+      setIsUpdating(inventoryId);
+      const { error } = await supabase
+        .from('pharmacy_inventory')
+        .update({ quantity: newQuantity })
+        .eq('id', inventoryId);
+      
+      if (error) {
+        console.error('Error updating quantity:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update quantity",
+          variant: "destructive",
+        });
+      } else {
+        setInventory(inventory.map(item => 
+          item.id === inventoryId ? { ...item, quantity: newQuantity } : item
+        ));
+        toast({
+          title: "Success",
+          description: "Quantity updated successfully",
+        });
+      }
+    } catch (err) {
+      console.error('Exception updating quantity:', err);
+    } finally {
+      setIsUpdating(null);
     }
   };
 
   const addMedicineToInventory = async (medicineId: string) => {
-    if (!pharmacy) return;
+    if (!pharmacy?.id) return;
     
-    const { error } = await supabase
-      .from('pharmacy_inventory')
-      .insert({
-        pharmacy_id: pharmacy.id,
-        medicine_id: medicineId,
-        in_stock: true,
-        quantity: 10
-      });
-    
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add medicine to inventory",
-        variant: "destructive",
-      });
-    } else {
-      fetchInventory();
-      toast({
-        title: "Success",
-        description: "Medicine added to inventory",
-      });
+    try {
+      // Check if medicine already exists in inventory
+      const existingItem = inventory.find(item => item.medicine_id === medicineId);
+      if (existingItem) {
+        toast({
+          title: "Already in inventory",
+          description: "This medicine is already in your inventory",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('pharmacy_inventory')
+        .insert({
+          pharmacy_id: pharmacy.id,
+          medicine_id: medicineId,
+          in_stock: true,
+          quantity: 10
+        });
+      
+      if (error) {
+        console.error('Error adding medicine:', error);
+        toast({
+          title: "Error",
+          description: "Failed to add medicine to inventory",
+          variant: "destructive",
+        });
+      } else {
+        await fetchInventory();
+        toast({
+          title: "Success",
+          description: "Medicine added to inventory",
+        });
+      }
+    } catch (err) {
+      console.error('Exception adding medicine:', err);
     }
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      navigate('/');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
   };
 
   const filteredInventory = inventory.filter(item => {
@@ -188,6 +288,8 @@ const PharmacyDashboard = () => {
     const matchesCategory = selectedCategory === 'all' || item.medicines.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const inventoryMedicineIds = inventory.map(item => item.medicine_id);
 
   if (loading) {
     return <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
@@ -247,18 +349,15 @@ const PharmacyDashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex space-x-4">
-                  <div className="flex-1">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search medicines..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full"
+                      className="pl-10"
                     />
                   </div>
-                  <Button className="bg-green-600 hover:bg-green-700">
-                    <Search className="w-4 h-4 mr-2" />
-                    Search
-                  </Button>
                 </div>
 
                 {/* Category Filters */}
@@ -289,7 +388,30 @@ const PharmacyDashboard = () => {
                     <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1">
                         <h3 className="font-medium text-gray-800">{item.medicines.name}</h3>
-                        <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm text-gray-600">Quantity:</span>
+                          <div className="flex items-center space-x-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              disabled={isUpdating === item.id || item.quantity <= 0}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <span className="text-sm font-medium min-w-[2rem] text-center">{item.quantity}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              disabled={isUpdating === item.id}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center space-x-3">
                         <Badge variant={item.in_stock ? "default" : "secondary"}>
@@ -299,9 +421,14 @@ const PharmacyDashboard = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => toggleStock(item.id, item.in_stock)}
+                          disabled={isUpdating === item.id}
                           className={item.in_stock ? "border-red-600 text-red-600 hover:bg-red-50" : "border-green-600 text-green-600 hover:bg-green-50"}
                         >
-                          {item.in_stock ? "Mark Out of Stock" : "Mark In Stock"}
+                          {isUpdating === item.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                          ) : (
+                            item.in_stock ? "Mark Out of Stock" : "Mark In Stock"
+                          )}
                         </Button>
                         <Button size="sm" variant="outline">
                           <Edit className="w-4 h-4" />
@@ -309,32 +436,28 @@ const PharmacyDashboard = () => {
                       </div>
                     </div>
                   ))}
+                  {filteredInventory.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      No medicines found matching your search criteria.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Quick Add Medicines */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Add Popular Medicines</CardTitle>
-                <p className="text-gray-600">Select from our master database</p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {medicines.slice(0, 8).map((medicine) => (
-                    <Button
-                      key={medicine.id}
-                      variant="outline"
-                      className="text-left justify-start h-auto p-3 hover:bg-green-50 hover:border-green-600"
-                      onClick={() => addMedicineToInventory(medicine.id)}
-                    >
-                      <Plus className="w-4 h-4 mr-2 text-green-600" />
-                      <span className="text-sm">{medicine.name}</span>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Category-wise Medicine Carousels */}
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold text-gray-800">Browse by Category</h3>
+              {categories.slice(1).map((category) => (
+                <CategoryCarousel
+                  key={category.id}
+                  category={category}
+                  medicines={medicines}
+                  onAddMedicine={addMedicineToInventory}
+                  inventoryMedicineIds={inventoryMedicineIds}
+                />
+              ))}
+            </div>
           </TabsContent>
 
           <TabsContent value="profile" className="space-y-6">
