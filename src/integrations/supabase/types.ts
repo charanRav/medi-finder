@@ -14,7 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      inventory: {
+        Row: {
+          created_at: string | null
+          id: string
+          in_stock: boolean | null
+          medicine_id: string
+          pharmacy_id: string
+          quantity: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          in_stock?: boolean | null
+          medicine_id: string
+          pharmacy_id: string
+          quantity?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          in_stock?: boolean | null
+          medicine_id?: string
+          pharmacy_id?: string
+          quantity?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_medicine_id_fkey"
+            columns: ["medicine_id"]
+            isOneToOne: false
+            referencedRelation: "medicines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medicines: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          manufacturer: string | null
+          name: string
+          price: number
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          manufacturer?: string | null
+          name: string
+          price: number
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          manufacturer?: string | null
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
+      pharmacies: {
+        Row: {
+          address: string
+          created_at: string | null
+          email: string
+          id: string
+          license_number: string
+          name: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          created_at?: string | null
+          email: string
+          id?: string
+          license_number: string
+          name: string
+          phone: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          license_number?: string
+          name?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
