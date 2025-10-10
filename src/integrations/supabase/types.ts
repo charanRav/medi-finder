@@ -95,8 +95,11 @@ export type Database = {
           created_at: string | null
           email: string
           id: string
+          latitude: number | null
           license_number: string
+          longitude: number | null
           name: string
+          owner_name: string | null
           phone: string
           user_id: string
         }
@@ -105,8 +108,11 @@ export type Database = {
           created_at?: string | null
           email: string
           id?: string
+          latitude?: number | null
           license_number: string
+          longitude?: number | null
           name: string
+          owner_name?: string | null
           phone: string
           user_id: string
         }
@@ -115,8 +121,11 @@ export type Database = {
           created_at?: string | null
           email?: string
           id?: string
+          latitude?: number | null
           license_number?: string
+          longitude?: number | null
           name?: string
+          owner_name?: string | null
           phone?: string
           user_id?: string
         }
