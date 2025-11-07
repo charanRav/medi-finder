@@ -277,6 +277,37 @@ export const usePharmacyData = () => {
     initializeData();
   }, [user]);
 
+  const deleteMedicineFromInventory = async (inventoryId: string) => {
+    try {
+      setIsUpdating(inventoryId);
+      
+      const { error } = await supabase
+        .from('inventory')
+        .delete()
+        .eq('id', inventoryId);
+
+      if (error) throw error;
+
+      // Refresh inventory
+      const { data: updatedInventory, error: fetchError } = await supabase
+        .from('inventory')
+        .select(`
+          *,
+          medicines (id, name, category)
+        `)
+        .eq('pharmacy_id', pharmacy?.id);
+
+      if (fetchError) throw fetchError;
+      setInventory(updatedInventory || []);
+      
+    } catch (error) {
+      console.error('Error deleting medicine from inventory:', error);
+      throw error;
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
   return {
     inventory,
     pharmacy,
@@ -287,6 +318,7 @@ export const usePharmacyData = () => {
     initializeData,
     toggleStock,
     updateQuantity,
-    addMedicineToInventory
+    addMedicineToInventory,
+    deleteMedicineFromInventory
   };
 };

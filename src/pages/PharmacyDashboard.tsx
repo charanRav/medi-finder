@@ -31,7 +31,8 @@ const PharmacyDashboard = () => {
     initializeData,
     toggleStock,
     updateQuantity,
-    addMedicineToInventory
+    addMedicineToInventory,
+    deleteMedicineFromInventory
   } = usePharmacyData();
 
   const handleLogout = async () => {
@@ -104,6 +105,7 @@ const PharmacyDashboard = () => {
               onToggleStock={toggleStock}
               onUpdateQuantity={updateQuantity}
               onAddMedicine={addMedicineToInventory}
+              onDeleteMedicine={deleteMedicineFromInventory}
             />
           </TabsContent>
 

@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Minus } from "lucide-react";
+import { Search, Plus, Edit, Minus, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import CategoryCarousel from "@/components/CategoryCarousel";
+import EditInventoryDialog from "./EditInventoryDialog";
+import DeleteInventoryDialog from "./DeleteInventoryDialog";
 
 interface Medicine {
   id: string;
@@ -28,6 +31,7 @@ interface InventoryManagementProps {
   onToggleStock: (inventoryId: string, currentStock: boolean) => void;
   onUpdateQuantity: (inventoryId: string, newQuantity: number) => void;
   onAddMedicine: (medicineId: string) => void;
+  onDeleteMedicine: (inventoryId: string) => void;
 }
 
 const InventoryManagement: React.FC<InventoryManagementProps> = ({
@@ -36,10 +40,15 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
   isUpdating,
   onToggleStock,
   onUpdateQuantity,
-  onAddMedicine
+  onAddMedicine,
+  onDeleteMedicine
 }) => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<InventoryItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const categories = [
     { id: 'all', name: 'All Medicines' },
@@ -58,6 +67,61 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
   });
 
   const inventoryMedicineIds = inventory.map(item => item.medicine_id);
+
+  const handleEditSave = async (id: string, quantity: number, inStock: boolean) => {
+    try {
+      await onUpdateQuantity(id, quantity);
+      if (inStock !== editItem?.in_stock) {
+        await onToggleStock(id, editItem?.in_stock || false);
+      }
+      toast({
+        title: "Success",
+        description: "Inventory updated successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update inventory",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      setIsDeleting(true);
+      await onDeleteMedicine(id);
+      toast({
+        title: "Success",
+        description: "Medicine removed from inventory",
+      });
+      setDeleteItem(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove medicine",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleAddMedicine = async (medicineId: string) => {
+    try {
+      await onAddMedicine(medicineId);
+      toast({
+        title: "Success",
+        description: "Medicine added to inventory",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add medicine",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -142,7 +206,6 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
                     variant="outline"
                     onClick={() => onToggleStock(item.id, item.in_stock)}
                     disabled={isUpdating === item.id}
-                    className={item.in_stock ? "border-red-600 text-red-600 hover:bg-red-50" : "border-green-600 text-green-600 hover:bg-green-50"}
                   >
                     {isUpdating === item.id ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
@@ -150,8 +213,20 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
                       item.in_stock ? "Mark Out of Stock" : "Mark In Stock"
                     )}
                   </Button>
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setEditItem(item)}
+                  >
                     <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setDeleteItem(item)}
+                    className="border-destructive text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -167,17 +242,34 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
 
       {/* Category-wise Medicine Carousels */}
       <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-800">Browse by Category</h3>
+        <h3 className="text-xl font-semibold">Browse by Category</h3>
         {categories.slice(1).map((category) => (
           <CategoryCarousel
             key={category.id}
             category={category}
             medicines={medicines}
-            onAddMedicine={onAddMedicine}
+            onAddMedicine={handleAddMedicine}
             inventoryMedicineIds={inventoryMedicineIds}
           />
         ))}
       </div>
+
+      {/* Edit Dialog */}
+      <EditInventoryDialog
+        item={editItem}
+        open={!!editItem}
+        onOpenChange={(open) => !open && setEditItem(null)}
+        onSave={handleEditSave}
+      />
+
+      {/* Delete Dialog */}
+      <DeleteInventoryDialog
+        item={deleteItem}
+        open={!!deleteItem}
+        onOpenChange={(open) => !open && setDeleteItem(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };
