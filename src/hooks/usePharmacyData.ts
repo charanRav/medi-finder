@@ -89,7 +89,7 @@ export const usePharmacyData = () => {
       // Fetch inventory after we have pharmacy data
       if (pharmacyResponse.data?.id) {
         const inventoryResponse = await supabase
-          .from('pharmacy_inventory')
+          .from('inventory')
           .select(`
             *,
             medicines (
@@ -135,7 +135,7 @@ export const usePharmacyData = () => {
       console.log(`Toggling stock for inventory ${inventoryId} from ${currentStock} to ${!currentStock}`);
       
       const { error } = await supabase
-        .from('pharmacy_inventory')
+        .from('inventory')
         .update({ in_stock: !currentStock })
         .eq('id', inventoryId);
       
@@ -175,7 +175,7 @@ export const usePharmacyData = () => {
       console.log(`Updating quantity for inventory ${inventoryId} to ${newQuantity}`);
       
       const { error } = await supabase
-        .from('pharmacy_inventory')
+        .from('inventory')
         .update({ quantity: newQuantity })
         .eq('id', inventoryId);
       
@@ -225,7 +225,7 @@ export const usePharmacyData = () => {
       }
 
       const { error } = await supabase
-        .from('pharmacy_inventory')
+        .from('inventory')
         .insert({
           pharmacy_id: pharmacy.id,
           medicine_id: medicineId,
@@ -243,7 +243,7 @@ export const usePharmacyData = () => {
       } else {
         // Refresh inventory data
         const inventoryResponse = await supabase
-          .from('pharmacy_inventory')
+          .from('inventory')
           .select(`
             *,
             medicines (

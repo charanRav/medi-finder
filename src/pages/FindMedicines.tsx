@@ -4,50 +4,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Search, MapPin, Phone, Clock, Navigation } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Search, MapPin, Phone, Clock, Navigation, Star, ParkingSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import SearchWithSuggestions from "@/components/SearchWithSuggestions";
-
-// Mock pharmacy locations for realistic range simulation
-const mockPharmacyLocations = [
-  { id: 1, distance: 0.5, name: "City Medical Store", address: "Main Street, Downtown" },
-  { id: 2, distance: 1.2, name: "Health Plus Pharmacy", address: "Park Avenue, Central" },
-  { id: 3, distance: 1.8, name: "Care Pharmacy", address: "Mall Road, Sector 15" },
-  { id: 4, distance: 2.3, name: "MediCare Center", address: "Hospital Road, Medical District" },
-  { id: 5, distance: 2.7, name: "Wellness Pharmacy", address: "Shopping Complex, Phase 2" },
-  { id: 6, distance: 3.1, name: "Quick Heal Medicines", address: "Metro Station, Line 1" },
-  { id: 7, distance: 3.8, name: "Life Care Pharmacy", address: "Residential Area, Block A" },
-  { id: 8, distance: 4.2, name: "Healing Touch", address: "Commercial Street, Zone 3" },
-  { id: 9, distance: 4.9, name: "Medicine World", address: "Tech Park, IT Corridor" },
-  { id: 10, distance: 5.5, name: "Pharma Plus", address: "University Area, Student Zone" },
-  { id: 11, distance: 6.2, name: "Health Hub", address: "Industrial Area, Sector 8" },
-  { id: 12, distance: 7.1, name: "Medical Corner", address: "Old City, Heritage Lane" },
-  { id: 13, distance: 7.8, name: "Remedy Pharmacy", address: "New Town, Development Area" },
-  { id: 14, distance: 8.4, name: "Cure All Medicines", address: "Airport Road, Terminal 2" },
-  { id: 15, distance: 9.2, name: "Health Station", address: "Highway Plaza, Mile 15" },
-  { id: 16, distance: 9.8, name: "Medicine Express", address: "Suburb Area, Green Valley" }
-];
+import { cities, getPharmaciesInRange, getMedicineStockForPharmacy } from "@/data/dummyData";
+import type { PharmacyLocation } from "@/data/dummyData";
 
 interface Medicine {
   id: string;
   name: string;
   category: string;
-  aliases?: string[];
+  description?: string;
+  price?: number;
+  manufacturer?: string;
 }
 
 const FindMedicines = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRange, setSelectedRange] = useState(5);
-  const [location, setLocation] = useState('');
+  const [selectedCity, setSelectedCity] = useState('mumbai');
   const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [pharmacies, setPharmacies] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     fetchMedicines();
-    fetchPharmacies();
   }, []);
 
   const fetchMedicines = async () => {
@@ -63,30 +46,12 @@ const FindMedicines = () => {
     }
   };
 
-  const fetchPharmacies = async () => {
-    const { data, error } = await supabase
-      .from('pharmacies')
-      .select('*')
-      .order('name');
-    
-    if (error) {
-      console.error('Error fetching pharmacies:', error);
-    } else {
-      setPharmacies(data || []);
-    }
-  };
-
-  const getPharmaciesByRange = (rangeKm) => {
-    return mockPharmacyLocations.filter(pharmacy => pharmacy.distance <= rangeKm);
-  };
-
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
     
     setIsLoading(true);
     
     try {
-      // Enhanced search with better matching
       const searchTermLower = searchTerm.toLowerCase();
       const { data: matchedMedicines, error } = await supabase
         .from('medicines')
@@ -98,25 +63,41 @@ const FindMedicines = () => {
         return;
       }
 
-      // Client-side fuzzy matching for better results
+      // Client-side fuzzy matching
       const filteredMedicines = matchedMedicines?.filter(medicine => {
         const name = medicine.name.toLowerCase();
-        const aliases = medicine.aliases?.map(alias => alias.toLowerCase()) || [];
+        const category = medicine.category.toLowerCase();
+        const desc = medicine.description?.toLowerCase() || '';
         
         return name.includes(searchTermLower) || 
-               aliases.some(alias => alias.includes(searchTermLower)) ||
-               name.startsWith(searchTermLower) ||
-               aliases.some(alias => alias.startsWith(searchTermLower));
+               category.includes(searchTermLower) ||
+               desc.includes(searchTermLower) ||
+               name.startsWith(searchTermLower);
       }) || [];
 
-      // Get pharmacies within selected range
-      const pharmaciesInRange = getPharmaciesByRange(selectedRange);
+      // Get pharmacies for selected city and range
+      const pharmaciesInRange = getPharmaciesInRange(selectedCity, selectedRange);
       
-      // Combine real medicine data with mock pharmacy locations for realistic results
-      const results = filteredMedicines?.map(medicine => ({
-        medicine,
-        availableAt: pharmaciesInRange.slice(0, Math.min(pharmaciesInRange.length, Math.floor(Math.random() * pharmaciesInRange.length) + 1)),
-      })) || [];
+      // Combine medicine data with pharmacy locations and stock info
+      const results = filteredMedicines.map(medicine => {
+        // Filter pharmacies that have this medicine in stock
+        const availablePharmacies = pharmaciesInRange
+          .map(pharmacy => {
+            const stock = getMedicineStockForPharmacy(pharmacy.id, medicine.id);
+            return {
+              ...pharmacy,
+              ...stock,
+            };
+          })
+          .filter(p => p.inStock)
+          .sort((a, b) => a.distance - b.distance);
+
+        return {
+          medicine,
+          availableAt: availablePharmacies,
+          totalPharmacies: availablePharmacies.length,
+        };
+      }).filter(result => result.availableAt.length > 0); // Only show medicines available somewhere
 
       setSearchResults(results);
     } catch (error) {
@@ -129,23 +110,7 @@ const FindMedicines = () => {
 
   const handleMedicineSelect = (medicine: Medicine) => {
     setSearchTerm(medicine.name);
-    handleSearch();
-  };
-
-  const handleLocationDetect = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation(`Current Location (${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)})`);
-        },
-        (error) => {
-          console.error('Location error:', error);
-          alert('Unable to detect location. Please enter manually.');
-        }
-      );
-    } else {
-      alert('Geolocation is not supported by this browser.');
-    }
+    setTimeout(() => handleSearch(), 100);
   };
 
   const rangeOptions = [1, 2, 5, 10, 15, 20];
@@ -192,21 +157,24 @@ const FindMedicines = () => {
               </div>
             </div>
 
-            {/* Location Input */}
+            {/* City Selection */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Your Location</label>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Enter your location or use GPS"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleLocationDetect} variant="outline">
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Detect
-                </Button>
-              </div>
+              <label className="text-sm font-medium text-gray-700">Select City</label>
+              <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose your city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((city) => (
+                    <SelectItem key={city.id} value={city.id}>
+                      <div className="flex items-center">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        {city.name}, {city.state}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Range Selection */}
@@ -225,7 +193,7 @@ const FindMedicines = () => {
                 ))}
               </div>
               <p className="text-sm text-gray-500">
-                Selected range: {selectedRange} km - Shows approximately {getPharmaciesByRange(selectedRange).length} pharmacies
+                Selected range: {selectedRange} km - Shows approximately {getPharmaciesInRange(selectedCity, selectedRange).length} pharmacies in {cities.find(c => c.id === selectedCity)?.name}
               </p>
             </div>
           </CardContent>
@@ -235,66 +203,102 @@ const FindMedicines = () => {
         {searchResults.length > 0 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">
-              Search Results ({searchResults.length} medicine{searchResults.length !== 1 ? 's' : ''} found)
+              Search Results ({searchResults.length} medicine{searchResults.length !== 1 ? 's' : ''} found in {cities.find(c => c.id === selectedCity)?.name})
             </h2>
             
             {searchResults.map((result, index) => (
               <Card key={index}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <div>
+                    <div className="flex-1">
                       <CardTitle className="text-xl text-blue-700">
                         {result.medicine.name}
                       </CardTitle>
-                      <div className="flex items-center space-x-2 mt-2">
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
                         <Badge variant="secondary">{result.medicine.category}</Badge>
-                        {result.medicine.aliases && result.medicine.aliases.length > 0 && (
+                        {result.medicine.manufacturer && (
                           <span className="text-sm text-gray-500">
-                            Also known as: {result.medicine.aliases.join(', ')}
+                            by {result.medicine.manufacturer}
                           </span>
                         )}
                       </div>
+                      {result.medicine.description && (
+                        <p className="text-sm text-gray-600 mt-2">{result.medicine.description}</p>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <h4 className="font-semibold text-gray-700">
-                      Available at {result.availableAt.length} pharmacies within {selectedRange} km:
+                      Available at {result.totalPharmacies} {result.totalPharmacies === 1 ? 'pharmacy' : 'pharmacies'} within {selectedRange} km:
                     </h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {result.availableAt.map((pharmacy) => (
-                        <div key={pharmacy.id} className="border rounded-lg p-4 bg-gray-50">
-                          <div className="flex justify-between items-start mb-2">
-                            <h5 className="font-medium text-gray-800">{pharmacy.name}</h5>
-                            <Badge variant="outline" className="ml-2">
+                      {result.availableAt.slice(0, 8).map((pharmacy: PharmacyLocation & { inStock: boolean; quantity: number; price: number }) => (
+                        <div key={pharmacy.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <h5 className="font-medium text-gray-800 flex-1">{pharmacy.name}</h5>
+                            <Badge variant="outline" className="ml-2 text-xs">
                               <Navigation className="w-3 h-3 mr-1" />
                               {pharmacy.distance} km
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <MapPin className="w-3 h-3 inline mr-1" />
-                            {pharmacy.address}
+                          
+                          <p className="text-sm text-gray-600 mb-3 flex items-start">
+                            <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
+                            <span>{pharmacy.address}</span>
                           </p>
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="default" className="bg-green-100 text-green-700">
-                                In Stock
-                              </Badge>
-                              <span className="text-sm text-gray-500">
-                                <Clock className="w-3 h-3 inline mr-1" />
-                                Open till 10 PM
-                              </span>
+                          
+                          <div className="space-y-2 mb-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-green-100 text-green-700 border-green-300">
+                                  In Stock: {pharmacy.quantity} units
+                                </Badge>
+                                <span className="font-semibold text-blue-600">₹{pharmacy.price}</span>
+                              </div>
                             </div>
-                            <Button size="sm" variant="outline">
+                            
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <div className="flex items-center">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {pharmacy.openingHours}
+                              </div>
+                              {pharmacy.hasParking && (
+                                <div className="flex items-center">
+                                  <ParkingSquare className="w-3 h-3 mr-1" />
+                                  Parking
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="text-sm font-medium">{pharmacy.rating}</span>
+                              <span className="text-xs text-gray-500">/5.0</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="flex-1">
                               <Phone className="w-3 h-3 mr-1" />
                               Call
+                            </Button>
+                            <Button size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700">
+                              <Navigation className="w-3 h-3 mr-1" />
+                              Directions
                             </Button>
                           </div>
                         </div>
                       ))}
                     </div>
+                    
+                    {result.availableAt.length > 8 && (
+                      <p className="text-sm text-gray-500 text-center">
+                        +{result.availableAt.length - 8} more {result.availableAt.length - 8 === 1 ? 'pharmacy' : 'pharmacies'} available
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
