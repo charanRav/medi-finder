@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import CategoryCarousel from "@/components/CategoryCarousel";
 import EditInventoryDialog from "./EditInventoryDialog";
 import DeleteInventoryDialog from "./DeleteInventoryDialog";
+import AddInventoryDialog from "./AddInventoryDialog";
 
 interface Medicine {
   id: string;
@@ -49,6 +50,7 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<InventoryItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const categories = [
     { id: 'all', name: 'All Medicines' },
@@ -128,13 +130,21 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
       {/* Search and Filter */}
       <Card>
         <CardHeader>
-          <CardTitle>Medicine Inventory</CardTitle>
-          <p className="text-gray-600">Manage your medicine stock and availability</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Medicine Inventory</CardTitle>
+              <p className="text-muted-foreground mt-1">Manage your medicine stock and availability</p>
+            </div>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Medicine
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex space-x-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 placeholder="Search medicines..."
                 value={searchTerm}
@@ -152,7 +162,6 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
                 variant={selectedCategory === category.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedCategory(category.id)}
-                className={selectedCategory === category.id ? "bg-blue-600 hover:bg-blue-700" : ""}
               >
                 {category.name}
               </Button>
@@ -169,11 +178,11 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
         <CardContent>
           <div className="space-y-3">
             {filteredInventory.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+              <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent">
                 <div className="flex-1">
-                  <h3 className="font-medium text-gray-800">{item.medicines.name}</h3>
+                  <h3 className="font-medium">{item.medicines.name}</h3>
                   <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-sm text-gray-600">Quantity:</span>
+                    <span className="text-sm text-muted-foreground">Quantity:</span>
                     <div className="flex items-center space-x-1">
                       <Button
                         size="sm"
@@ -232,7 +241,7 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
               </div>
             ))}
             {filteredInventory.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 No medicines found matching your search criteria.
               </div>
             )}
@@ -269,6 +278,15 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({
         onOpenChange={(open) => !open && setDeleteItem(null)}
         onConfirm={handleDelete}
         isDeleting={isDeleting}
+      />
+
+      {/* Add Dialog */}
+      <AddInventoryDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        medicines={medicines}
+        inventoryMedicineIds={inventoryMedicineIds}
+        onAddMedicine={handleAddMedicine}
       />
     </div>
   );
