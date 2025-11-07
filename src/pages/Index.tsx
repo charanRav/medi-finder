@@ -1,19 +1,17 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, MapPin, Phone, Shield, Clock, Star, LogOut, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-
 const Index = () => {
-  const { user, signOut } = useAuth();
-
+  const {
+    user,
+    signOut
+  } = useAuth();
   const handleLogout = async () => {
     await signOut();
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+  return <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
@@ -25,22 +23,18 @@ const Index = () => {
               <h1 className="text-2xl font-bold text-gray-800">MediFinder</h1>
             </div>
             <div className="flex items-center space-x-4">
-              {user ? (
-                <>
+              {user ? <>
                   <span className="text-gray-600">Welcome, {user.email}</span>
                   <Button variant="outline" onClick={handleLogout}>
                     <LogOut className="w-4 h-4 mr-2" />
                     Logout
                   </Button>
-                </>
-              ) : (
-                <Link to="/auth">
+                </> : <Link to="/auth">
                   <Button variant="outline">
                     <User className="w-4 h-4 mr-2" />
                     Login / Sign Up
                   </Button>
-                </Link>
-              )}
+                </Link>}
             </div>
           </div>
         </div>
@@ -241,12 +235,10 @@ const Index = () => {
           </div>
           
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 MediFinder. All rights reserved.</p>
+            <p>© 2024 MediFinder. All rights reserved. Developed by Recuriq</p>
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
