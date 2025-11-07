@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Search, MapPin, Phone, Clock, Navigation, Star, ParkingSquare } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Search, MapPin, Phone, Clock, Navigation, Star, ParkingSquare, Map, List } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import SearchWithSuggestions from "@/components/SearchWithSuggestions";
+import PharmacyMap from "@/components/PharmacyMap";
 import { cities, getPharmaciesInRange, getMedicineStockForPharmacy } from "@/data/dummyData";
 import type { PharmacyLocation } from "@/data/dummyData";
 
@@ -25,6 +27,7 @@ const FindMedicines = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRange, setSelectedRange] = useState(5);
   const [selectedCity, setSelectedCity] = useState('mumbai');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -202,107 +205,152 @@ const FindMedicines = () => {
         {/* Search Results */}
         {searchResults.length > 0 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Search Results ({searchResults.length} medicine{searchResults.length !== 1 ? 's' : ''} found in {cities.find(c => c.id === selectedCity)?.name})
-            </h2>
-            
-            {searchResults.map((result, index) => (
-              <Card key={index}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-xl text-blue-700">
-                        {result.medicine.name}
-                      </CardTitle>
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <Badge variant="secondary">{result.medicine.category}</Badge>
-                        {result.medicine.manufacturer && (
-                          <span className="text-sm text-gray-500">
-                            by {result.medicine.manufacturer}
-                          </span>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Search Results ({searchResults.length} medicine{searchResults.length !== 1 ? 's' : ''} found in {cities.find(c => c.id === selectedCity)?.name})
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                >
+                  <List className="w-4 h-4 mr-2" />
+                  List View
+                </Button>
+                <Button
+                  variant={viewMode === 'map' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('map')}
+                >
+                  <Map className="w-4 h-4 mr-2" />
+                  Map View
+                </Button>
+              </div>
+            </div>
+
+            {viewMode === 'map' ? (
+              <div className="h-[600px] w-full rounded-lg overflow-hidden border">
+                {searchResults.length > 0 && searchResults[0].availableAt.length > 0 && (
+                  <PharmacyMap
+                    pharmacies={searchResults.flatMap(result =>
+                      result.availableAt.map((pharmacy: any) => ({
+                        ...pharmacy,
+                        medicineName: result.medicine.name,
+                      }))
+                    )}
+                    cityCoords={cities.find(c => c.id === selectedCity)?.coords || { lat: 0, lng: 0 }}
+                  />
+                )}
+              </div>
+            ) : (
+              <>
+                {searchResults.map((result, index) => (
+                  <Card key={index}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <CardTitle className="text-xl text-blue-700">
+                            {result.medicine.name}
+                          </CardTitle>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Badge variant="secondary">{result.medicine.category}</Badge>
+                            {result.medicine.manufacturer && (
+                              <span className="text-sm text-gray-500">
+                                by {result.medicine.manufacturer}
+                              </span>
+                            )}
+                          </div>
+                          {result.medicine.description && (
+                            <p className="text-sm text-gray-600 mt-2">{result.medicine.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <h4 className="font-semibold text-gray-700">
+                          Available at {result.totalPharmacies} {result.totalPharmacies === 1 ? 'pharmacy' : 'pharmacies'} within {selectedRange} km:
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {result.availableAt.slice(0, 8).map((pharmacy: PharmacyLocation & { inStock: boolean; quantity: number; price: number }) => (
+                            <div key={pharmacy.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
+                              <div className="flex justify-between items-start mb-3">
+                                <h5 className="font-medium text-gray-800 flex-1">{pharmacy.name}</h5>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  <Navigation className="w-3 h-3 mr-1" />
+                                  {pharmacy.distance} km
+                                </Badge>
+                              </div>
+                              
+                              <p className="text-sm text-gray-600 mb-3 flex items-start">
+                                <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
+                                <span>{pharmacy.address}</span>
+                              </p>
+                              
+                              <div className="space-y-2 mb-3">
+                                <div className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Badge className="bg-green-100 text-green-700 border-green-300">
+                                      In Stock: {pharmacy.quantity} units
+                                    </Badge>
+                                    <span className="font-semibold text-blue-600">₹{pharmacy.price}</span>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <div className="flex items-center">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    {pharmacy.openingHours}
+                                  </div>
+                                  {pharmacy.hasParking && (
+                                    <div className="flex items-center">
+                                      <ParkingSquare className="w-3 h-3 mr-1" />
+                                      Parking
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-sm font-medium">{pharmacy.rating}</span>
+                                  <span className="text-xs text-gray-500">/5.0</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" className="flex-1">
+                                  <Phone className="w-3 h-3 mr-1" />
+                                  Call
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                  onClick={() => {
+                                    const url = `https://www.google.com/maps/dir/?api=1&destination=${pharmacy.latitude},${pharmacy.longitude}`;
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  <Navigation className="w-3 h-3 mr-1" />
+                                  Directions
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {result.availableAt.length > 8 && (
+                          <p className="text-sm text-gray-500 text-center">
+                            +{result.availableAt.length - 8} more {result.availableAt.length - 8 === 1 ? 'pharmacy' : 'pharmacies'} available
+                          </p>
                         )}
                       </div>
-                      {result.medicine.description && (
-                        <p className="text-sm text-gray-600 mt-2">{result.medicine.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-gray-700">
-                      Available at {result.totalPharmacies} {result.totalPharmacies === 1 ? 'pharmacy' : 'pharmacies'} within {selectedRange} km:
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {result.availableAt.slice(0, 8).map((pharmacy: PharmacyLocation & { inStock: boolean; quantity: number; price: number }) => (
-                        <div key={pharmacy.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
-                          <div className="flex justify-between items-start mb-3">
-                            <h5 className="font-medium text-gray-800 flex-1">{pharmacy.name}</h5>
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              <Navigation className="w-3 h-3 mr-1" />
-                              {pharmacy.distance} km
-                            </Badge>
-                          </div>
-                          
-                          <p className="text-sm text-gray-600 mb-3 flex items-start">
-                            <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
-                            <span>{pharmacy.address}</span>
-                          </p>
-                          
-                          <div className="space-y-2 mb-3">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-green-100 text-green-700 border-green-300">
-                                  In Stock: {pharmacy.quantity} units
-                                </Badge>
-                                <span className="font-semibold text-blue-600">₹{pharmacy.price}</span>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <div className="flex items-center">
-                                <Clock className="w-3 h-3 mr-1" />
-                                {pharmacy.openingHours}
-                              </div>
-                              {pharmacy.hasParking && (
-                                <div className="flex items-center">
-                                  <ParkingSquare className="w-3 h-3 mr-1" />
-                                  Parking
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="flex items-center gap-1">
-                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                              <span className="text-sm font-medium">{pharmacy.rating}</span>
-                              <span className="text-xs text-gray-500">/5.0</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="flex-1">
-                              <Phone className="w-3 h-3 mr-1" />
-                              Call
-                            </Button>
-                            <Button size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700">
-                              <Navigation className="w-3 h-3 mr-1" />
-                              Directions
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {result.availableAt.length > 8 && (
-                      <p className="text-sm text-gray-500 text-center">
-                        +{result.availableAt.length - 8} more {result.availableAt.length - 8 === 1 ? 'pharmacy' : 'pharmacies'} available
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
           </div>
         )}
 

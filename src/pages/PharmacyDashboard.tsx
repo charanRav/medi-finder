@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Package, 
   Settings, 
-  Shield
+  ShoppingCart,
+  MapPin
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -13,7 +14,8 @@ import { usePharmacyData } from "@/hooks/usePharmacyData";
 import PharmacyHeader from "@/components/pharmacy/PharmacyHeader";
 import InventoryManagement from "@/components/pharmacy/InventoryManagement";
 import ProfileSettings from "@/components/pharmacy/ProfileSettings";
-import OrdersPlaceholder from "@/components/pharmacy/OrdersPlaceholder";
+import OrdersManagement from "@/components/pharmacy/OrdersManagement";
+import LocationSettings from "@/components/pharmacy/LocationSettings";
 
 const PharmacyDashboard = () => {
   const { signOut } = useAuth();
@@ -75,18 +77,22 @@ const PharmacyDashboard = () => {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="inventory" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="inventory">
               <Package className="w-4 h-4 mr-2" />
-              Inventory Management
+              Inventory
+            </TabsTrigger>
+            <TabsTrigger value="orders">
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              Orders
+            </TabsTrigger>
+            <TabsTrigger value="location">
+              <MapPin className="w-4 h-4 mr-2" />
+              Location
             </TabsTrigger>
             <TabsTrigger value="profile">
               <Settings className="w-4 h-4 mr-2" />
-              Profile Settings
-            </TabsTrigger>
-            <TabsTrigger value="orders">
-              <Shield className="w-4 h-4 mr-2" />
-              Orders
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -101,12 +107,16 @@ const PharmacyDashboard = () => {
             />
           </TabsContent>
 
-          <TabsContent value="profile">
-            <ProfileSettings pharmacy={pharmacy} />
+          <TabsContent value="orders">
+            <OrdersManagement />
           </TabsContent>
 
-          <TabsContent value="orders">
-            <OrdersPlaceholder />
+          <TabsContent value="location">
+            <LocationSettings pharmacy={pharmacy} />
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileSettings pharmacy={pharmacy} />
           </TabsContent>
         </Tabs>
       </div>
